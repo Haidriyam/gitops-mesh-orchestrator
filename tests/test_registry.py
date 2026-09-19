@@ -1,4 +1,5 @@
 import unittest
+import time
 from orchestrator.registry import ServiceRegistry
 
 
@@ -19,14 +20,15 @@ class TestServiceRegistry(unittest.TestCase):
         self.assertEqual(node_a.instance_id, node_c.instance_id)
 
     def test_ttl_eviction_of_unhealthy_nodes(self):
-        # Register with short TTL
-        self.registry.register("order-service", "node-1", "10.0.2.1", 9000, ttl=2.0)
+        t0 = time.time()
+        self.registry.register("order-service", "node-1", "10.0.2.1", 9000, ttl=2.0, now=t0)
 
-        # Simulate time jump beyond TTL
-        self.registry.prune_unhealthy_nodes(current_time=100.0)
+        # Node should be resolvable immediately at t0
+        active = self.registry.resolve_next("order-service", current_time=t0)
+        self.assertIsNotNone(active)
 
-        # Querying now should return None
-        resolved = self.registry.resolve_next("order-service")
+        # Forward time past TTL (t0 + 5.0 seconds) -> must be pruned
+        resolved = self.registry.resolve_next("order-service", current_time=t0 + 5.0)
         self.assertIsNone(resolved)
 
 
