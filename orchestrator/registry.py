@@ -22,20 +22,28 @@ class ServiceRegistry:
         self._services: Dict[str, Dict[str, ServiceInstance]] = {}
         self._round_robin_index: Dict[str, int] = {}
 
-    def register(self, service_name: str, instance_id: str, host: str, port: int, ttl: float = 5.0):
+    def register(
+        self,
+        service_name: str,
+        instance_id: str,
+        host: str,
+        port: int,
+        ttl: float = 5.0,
+        now: Optional[float] = None
+    ):
         """Register or renew a service node with a time-to-live (TTL) lease."""
         if service_name not in self._services:
             self._services[service_name] = {}
             self._round_robin_index[service_name] = 0
 
-        now = time.time()
+        current_time = now if now is not None else time.time()
         self._services[service_name][instance_id] = ServiceInstance(
             instance_id=instance_id,
             service_name=service_name,
             host=host,
             port=port,
             ttl_seconds=ttl,
-            last_heartbeat=now
+            last_heartbeat=current_time
         )
 
     def prune_unhealthy_nodes(self, current_time: Optional[float] = None):
@@ -47,9 +55,13 @@ class ServiceRegistry:
                 if now - node.last_heartbeat > node.ttl_seconds:
                     del self._services[s_name][inst_id]
 
-    def resolve_next(self, service_name: str) -> Optional[ServiceInstance]:
+    def resolve_next(
+        self,
+        service_name: str,
+        current_time: Optional[float] = None
+    ) -> Optional[ServiceInstance]:
         """Round-robin load balancer returning the next healthy service node."""
-        self.prune_unhealthy_nodes()
+        self.prune_unhealthy_nodes(current_time=current_time)
         nodes: List[ServiceInstance] = list(self._services.get(service_name, {}).values())
 
         if not nodes:
